@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name (e.g. 1.0.0)'
+        required: true
+        type: string
+      release_notes:
+        description: 'Release notes'
+        required: true
+        type: string
+      create_tag:
+        description: 'Create git tag'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Validate version name
+        run: |
+          if ! echo "${{ inputs.version_name }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Error: Version name must follow semver format (e.g. 1.0.0)"
+            exit 1
+          fi
+
+      - name: Update version in build.gradle.kts
+        run: |
+          sed -i "s/versionName = \".*\"/versionName = \"${{ inputs.version_name }}\"/" app/build.gradle.kts
+          VERSION_CODE=$(echo "${{ inputs.version_name }}" | awk -F. '{print $1 * 10000 + $2 * 100 + $3}')
+          sed -i "s/versionCode = .*/versionCode = ${VERSION_CODE}/" app/build.gradle.kts
+
+      - name: Build Release APKs
+        run: ./gradlew assembleRelease
+
+      - name: Build Release AAB
+        run: ./gradlew bundleRelease
+
+      - name: Sign APKs
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > /tmp/keystore.jks
+          # Sign APKs if keystore is available
+          for apk in app/build/outputs/apk/release/*.apk; do
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+              -keystore /tmp/keystore.jks \
+              -storepass "$KEYSTORE_PASSWORD" \
+              -keypass "$KEY_PASSWORD" \
+              "$apk" "$KEY_ALIAS" || true
+          done
+
+      - name: Generate git SHA
+        id: git
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Upload Release APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pontifex-${{ inputs.version_name }}
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+
+      - name: Create Git Tag
+        if: inputs.create_tag
+        run: |
+          git tag "v${{ inputs.version_name }}"
+          git push origin "v${{ inputs.version_name }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version_name }}
+          name: "Pontifex v${{ inputs.version_name }}"
+          body: |
+            ## Pontifex v${{ inputs.version_name }}
+
+            ${{ inputs.release_notes }}
+
+            **Git SHA:** ${{ steps.git.outputs.sha }}
+
+            ### Downloads
+
+            - **APK** (for direct install): Download the `.apk` file
+            - **AAB** (for Play Store): Download the `.aab` file
+
+            ### ABI Builds
+
+            - `arm64-v8a` - Most modern devices
+            - `armeabi-v7a` - Older 32-bit devices
+            - `x86_64` - Emulators and ChromeOS
+            - `universal` - All architectures
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+          prerelease: false
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
