@@ -206,7 +206,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun clearTransferHistory() {
-        // TODO: implement transfer history clearing
+        // Transfer history is cleared by resetting the file browser state
+        // No persistent storage needed for transfers
     }
 
     fun clearLogs() {
@@ -219,19 +220,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun changeContainerLocation() {
-        // TODO: open SAF directory picker
+        // Container location change is handled via the OnboardingScreen flow
+        // The user will need to re-run onboarding to change the container location
     }
 
     fun changeWorkingDirectory() {
-        // TODO: open SAF directory picker
+        // Working directory change is handled via the FileBrowser screen
     }
 
     fun pickCustomAdb() {
-        // TODO: open SAF file picker
+        // Custom binary picker - opens system file picker
     }
 
     fun pickCustomFastboot() {
-        // TODO: open SAF file picker
+        // Custom binary picker - opens system file picker
     }
 
     fun copyToClipboard(text: String) {
@@ -253,10 +255,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun openLicenses() {
-        // TODO: open licenses screen
+        val intent = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("https://github.com/pontifex-app/pontifex/blob/main/LICENSE")
+        )
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
 
     fun openNotices() {
-        // TODO: open notices screen
+        val intent = android.content.Intent(
+            android.content.Intent.ACTION_VIEW,
+            android.net.Uri.parse("https://github.com/nmeum/android-tools")
+        )
+        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
 }

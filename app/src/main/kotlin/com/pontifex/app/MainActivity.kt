@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -27,13 +28,20 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        var isReady = false
+        splashScreen.setKeepOnScreenCondition { !isReady }
+
         enableEdgeToEdge()
         setContent {
             val mainViewModel: MainViewModel = hiltViewModel()
             val isDark by mainViewModel.isDarkMode.collectAsState()
             val dynamicColor by mainViewModel.isDynamicColor.collectAsState()
             val amoledBlack by mainViewModel.isAmoledBlack.collectAsState()
+
+            isReady = true
 
             PontifexTheme(
                 darkTheme = isDark,
@@ -81,7 +89,7 @@ fun PontifexMainContent() {
     ) { innerPadding ->
         PontifexNavHost(
             navController = navController,
-            startDestination = Screen.Terminal.route,
+            startDestination = Screen.Splash.route,
             modifier = Modifier.padding(innerPadding)
         )
     }

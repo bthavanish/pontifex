@@ -3,6 +3,7 @@ package com.pontifex.app.presentation.components
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -24,10 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.pontifex.app.service.terminal.PontifexTerminalSession
 
 @Composable
 fun TerminalInputRow(
-    onSendCommand: (String) -> Unit,
+    session: PontifexTerminalSession?,
     modifier: Modifier = Modifier
 ) {
     var command by remember { mutableStateOf("") }
@@ -48,22 +50,25 @@ fun TerminalInputRow(
             keyboardActions = KeyboardActions(
                 onSend = {
                     if (command.isNotBlank()) {
-                        onSendCommand(command)
+                        session?.write(command + "\r")
                         command = ""
                     }
                 }
             ),
+            shape = RoundedCornerShape(28.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                cursorColor = MaterialTheme.colorScheme.primary
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer
             )
         )
 
         FilledIconButton(
             onClick = {
                 if (command.isNotBlank()) {
-                    onSendCommand(command)
+                    session?.write(command + "\r")
                     command = ""
                 }
             },

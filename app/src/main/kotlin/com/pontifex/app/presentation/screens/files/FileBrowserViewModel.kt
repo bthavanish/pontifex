@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.pontifex.app.data.binary.BinaryManager
 import com.pontifex.app.data.binary.ContainerManager
 import com.pontifex.app.domain.repository.SettingsRepository
+import com.pontifex.app.domain.usecase.ExecuteCommandUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,7 +29,8 @@ class FileBrowserViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val containerManager: ContainerManager,
-    private val binaryManager: BinaryManager
+    private val binaryManager: BinaryManager,
+    private val executeCommandUseCase: ExecuteCommandUseCase
 ) : ViewModel() {
 
     private val _hostFiles = MutableStateFlow<List<FileItem>>(emptyList())
@@ -49,6 +53,9 @@ class FileBrowserViewModel @Inject constructor(
 
     private val _isWideScreen = MutableStateFlow(false)
     val isWideScreen: StateFlow<Boolean> = _isWideScreen.asStateFlow()
+
+    private val _isTransferring = MutableStateFlow(false)
+    val isTransferring: StateFlow<Boolean> = _isTransferring.asStateFlow()
 
     private var containerPath: String = ""
 
@@ -157,25 +164,35 @@ class FileBrowserViewModel @Inject constructor(
 
     fun pushFiles() {
         viewModelScope.launch {
-            val hostPath = "$containerPath/${_hostBreadcrumb.value.joinToString("/")}"
+            _isTransferring.value = true
             val targetPath = "/${_targetBreadcrumb.value.joinToString("/")}"
             _selectedHostFiles.value.forEach { file ->
-                runAdbCommand("push $hostPath/${java.io.File(file).name} $targetPath/")
+                val hostPath = "$containerPath/${_hostBreadcrumb.value.joinToString("/")}"
+                val cmd = "adb push $hostPath/${java.io.File(file).name} $targetPath/"
+                executeCommandUseCase(0, cmd)
+                    .onEach { }
+                    .launchIn(viewModelScope)
             }
             _selectedHostFiles.value = emptySet()
             loadTargetFiles()
+            _isTransferring.value = false
         }
     }
 
     fun pullFiles() {
         viewModelScope.launch {
+            _isTransferring.value = true
             val hostPath = "$containerPath/${_hostBreadcrumb.value.joinToString("/")}"
             val targetPath = "/${_targetBreadcrumb.value.joinToString("/")}"
             _selectedTargetFiles.value.forEach { file ->
-                runAdbCommand("pull $targetPath/$file $hostPath/")
+                val cmd = "adb pull $targetPath/$file $hostPath/"
+                executeCommandUseCase(0, cmd)
+                    .onEach { }
+                    .launchIn(viewModelScope)
             }
             _selectedTargetFiles.value = emptySet()
             loadHostFiles()
+            _isTransferring.value = false
         }
     }
 

@@ -8,8 +8,9 @@ import com.pontifex.app.domain.repository.DeviceRepository
 import com.pontifex.app.domain.repository.SettingsRepository
 import com.pontifex.app.domain.usecase.ExecuteCommandUseCase
 import com.pontifex.app.domain.usecase.StartShellSessionUseCase
+import com.pontifex.app.service.device.DeviceMonitor
+import com.pontifex.app.service.terminal.PontifexTerminalSession
 import com.pontifex.app.service.terminal.SessionManager
-import com.pontifex.app.service.terminal.TerminalSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,16 +27,17 @@ class TerminalViewModel @Inject constructor(
     private val executeCommandUseCase: ExecuteCommandUseCase,
     private val containerManager: ContainerManager,
     private val settingsRepository: SettingsRepository,
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    private val deviceMonitor: DeviceMonitor
 ) : ViewModel() {
 
-    private val _sessions = MutableStateFlow<List<TerminalSession>>(emptyList())
-    val sessions: StateFlow<List<TerminalSession>> = _sessions.asStateFlow()
+    private val _sessions = MutableStateFlow<List<PontifexTerminalSession>>(emptyList())
+    val sessions: StateFlow<List<PontifexTerminalSession>> = _sessions.asStateFlow()
+
+    private val _activeSession = MutableStateFlow<PontifexTerminalSession?>(null)
+    val activeSession: StateFlow<PontifexTerminalSession?> = _activeSession.asStateFlow()
 
     val activeSessionId: StateFlow<Int> = sessionManager.activeSessionId
-
-    private val _scrollback = MutableStateFlow<List<com.pontifex.app.domain.model.TerminalLine>>(emptyList())
-    val scrollback: StateFlow<List<com.pontifex.app.domain.model.TerminalLine>> = _scrollback.asStateFlow()
 
     val fontSize: StateFlow<Int> = settingsRepository.getFontSize()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 14)
@@ -59,39 +61,39 @@ class TerminalViewModel @Inject constructor(
                 }
             }
         }
+
+        viewModelScope.launch {
+            deviceMonitor.devices.collect { devices ->
+                deviceRepository.syncDevices(devices)
+            }
+        }
     }
 
     fun createNewSession() {
-        viewModelScope.launch {
-            val sessionId = sessionManager.getNextSessionId()
-            val session = startShellSessionUseCase(containerPath, sessionId)
-            session.start()
-            _sessions.value = _sessions.value + session
-
-            viewModelScope.launch {
-                session.scrollback.collect { lines ->
-                    _scrollback.value = lines
-                }
-            }
-        }
+        val sessionId = sessionManager.getNextSessionId()
+        val session = startShellSessionUseCase(containerPath, sessionId)
+        session.start()
+        _sessions.value = _sessions.value + session
+        _activeSession.value = session
+        sessionManager.setActiveSession(sessionId)
     }
 
     fun setActiveSession(sessionId: Int) {
         sessionManager.setActiveSession(sessionId)
         val session = sessionManager.getSession(sessionId)
-        session?.let {
-            viewModelScope.launch {
-                it.scrollback.collect { lines ->
-                    _scrollback.value = lines
-                }
-            }
-        }
+        _activeSession.value = session
+    }
+
+    fun closeSession(sessionId: Int) {
+        sessionManager.closeSession(sessionId)
+        _sessions.value = _sessions.value.filter { it.id != sessionId }
+        _activeSession.value = sessionManager.getActiveSession()
     }
 
     fun sendCommandToActiveSession(command: String) {
         viewModelScope.launch {
             sessionManager.getActiveSession()?.let { session ->
-                executeCommandUseCase(session.id, command)
+                session.write(command + "\r")
                 sessionManager.saveCommandToHistory(session.id, command)
             }
         }
@@ -99,12 +101,13 @@ class TerminalViewModel @Inject constructor(
 
     fun sendKeyToActiveSession(key: String) {
         viewModelScope.launch {
-            sessionManager.getActiveSession()?.sendCommand(key)
+            sessionManager.getActiveSession()?.write(key)
         }
     }
 
     override fun onCleared() {
         super.onCleared()
         sessionManager.closeAllSessions()
+        deviceMonitor.stop()
     }
 }
