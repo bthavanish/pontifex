@@ -28,24 +28,7 @@ class InitializeContainerUseCaseTest {
     }
 
     @Test
-    fun `invoke returns Uninitialized when no URI set`() = runTest {
-        whenever(settingsRepository.getContainerUri()).thenReturn(flowOf(null))
-
-        useCase = InitializeContainerUseCase(
-            mock(),
-            mock(),
-            mock(),
-            mock(),
-            settingsRepository
-        )
-
-        val result = useCase()
-        assertTrue(result.isSuccess)
-        assertEquals(ContainerState.Uninitialized, result.getOrNull())
-    }
-
-    @Test
-    fun `invoke returns Uninitialized when empty URI`() = runTest {
+    fun `checkExisting returns Uninitialized when no URI set`() = runTest {
         whenever(settingsRepository.getContainerUri()).thenReturn(flowOf(""))
 
         useCase = InitializeContainerUseCase(
@@ -56,13 +39,13 @@ class InitializeContainerUseCaseTest {
             settingsRepository
         )
 
-        val result = useCase()
+        val result = useCase.checkExisting()
         assertTrue(result.isSuccess)
         assertEquals(ContainerState.Uninitialized, result.getOrNull())
     }
 
     @Test
-    fun `invoke returns Ready when valid URI exists`() = runTest {
+    fun `checkExisting returns Ready when valid URI exists`() = runTest {
         val uri = tempFolder.root.absolutePath
         whenever(settingsRepository.getContainerUri()).thenReturn(flowOf(uri))
 
@@ -77,13 +60,13 @@ class InitializeContainerUseCaseTest {
             settingsRepository
         )
 
-        val result = useCase()
+        val result = useCase.checkExisting()
         assertTrue(result.isSuccess)
         assertTrue(result.getOrNull() is ContainerState.Ready)
     }
 
     @Test
-    fun `invoke returns error when URI invalid`() = runTest {
+    fun `checkExisting returns error when URI invalid`() = runTest {
         whenever(settingsRepository.getContainerUri()).thenReturn(flowOf("invalid://path"))
 
         val containerManager = mock<com.pontifex.app.data.binary.ContainerManager>()
@@ -97,7 +80,7 @@ class InitializeContainerUseCaseTest {
             settingsRepository
         )
 
-        val result = useCase()
+        val result = useCase.checkExisting()
         assertTrue(result.isFailure)
     }
 }
