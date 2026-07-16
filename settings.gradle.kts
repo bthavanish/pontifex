@@ -17,3 +17,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Pontifex"
 include(":app")
+include(":terminal-emulator")
+project(":terminal-emulator").projectDir = file("terminal-emulator")

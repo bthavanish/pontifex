@@ -58,6 +58,19 @@ android {
     }
 }
 
+tasks.register<Exec>("downloadBinaries") {
+    onlyIf {
+        !file("src/main/assets/bin/arm64-v8a/adb").exists() ||
+        file("src/main/assets/bin/arm64-v8a/adb").length() < 1024
+    }
+    commandLine("bash", "${rootProject.projectDir}/build-binaries.sh")
+    isIgnoreExitValue = true
+}
+
+tasks.named("preBuild") {
+    dependsOn("downloadBinaries")
+}
+
 dependencies {
     implementation(libs.core.ktx)
     implementation(libs.lifecycle.runtime.ktx)
@@ -89,6 +102,9 @@ dependencies {
 
     implementation(libs.okhttp)
     implementation(libs.moshi.kotlin)
+
+    implementation(libs.splashscreen)
+    implementation(project(":terminal-emulator"))
 
     testImplementation(libs.junit)
     testImplementation(libs.mockito.kotlin)
