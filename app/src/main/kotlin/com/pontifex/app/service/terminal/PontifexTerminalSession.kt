@@ -33,6 +33,18 @@ class PontifexTerminalSession @Inject constructor(
     private val _screen = MutableStateFlow<TerminalBuffer?>(null)
     val screen: StateFlow<TerminalBuffer?> = _screen.asStateFlow()
 
+    private val _cursorRow = MutableStateFlow(0)
+    val cursorRow: StateFlow<Int> = _cursorRow.asStateFlow()
+
+    private val _cursorCol = MutableStateFlow(0)
+    val cursorCol: StateFlow<Int> = _cursorCol.asStateFlow()
+
+    private val _columns = MutableStateFlow(80)
+    val columns: StateFlow<Int> = _columns.asStateFlow()
+
+    private val _colors = MutableStateFlow<IntArray?>(null)
+    val colors: StateFlow<IntArray?> = _colors.asStateFlow()
+
     private val _titleFlow = MutableStateFlow(name)
     val title: StateFlow<String> = _titleFlow.asStateFlow()
 
@@ -49,7 +61,7 @@ class PontifexTerminalSession @Inject constructor(
         val cwd = File(containerPath, "home").also { it.mkdirs() }.absolutePath
 
         termuxSession = TerminalSession(
-            shell, cwd, args, env, rows, columns, this
+            shell, cwd, args, env, rows, this
         )
         _isRunning.value = true
     }
@@ -73,11 +85,11 @@ class PontifexTerminalSession @Inject constructor(
     fun write(data: ByteArray) = termuxSession.write(String(data))
 
     fun sendSignal(signal: Int) {
-        termuxSession.sendHangupSignal()
+        termuxSession.finishIfRunning()
     }
 
-    fun resize(columns: Int, rows: Int) {
-        termuxSession.updateSize(columns, rows)
+    fun resize(columns: Int, rows: Int, cellWidthPixels: Int = 0, cellHeightPixels: Int = 0) {
+        termuxSession.updateSize(columns, rows, cellWidthPixels, cellHeightPixels)
     }
 
     fun destroy() {
@@ -93,7 +105,14 @@ class PontifexTerminalSession @Inject constructor(
     }
 
     override fun onTextChanged(changedSession: TerminalSession) {
-        _screen.value = changedSession.emulator?.screen
+        val emulator = changedSession.emulator
+        if (emulator != null) {
+            _screen.value = emulator.screen
+            _cursorRow.value = emulator.cursorRow
+            _cursorCol.value = emulator.cursorCol
+            _columns.value = emulator.mColumns
+            _colors.value = emulator.mColors.mCurrentColors.copyOf()
+        }
     }
 
     override fun onTitleChanged(changedSession: TerminalSession) {

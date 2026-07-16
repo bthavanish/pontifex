@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -53,12 +54,13 @@ class DeviceMonitor @Inject constructor(
                         is UsbDeviceEvent.PermissionDenied -> null
                     }
                 }
+                .filter { it != null }
 
             val wirelessPoll = tickerFlow(10_000)
                 .flatMapLatest { deviceDetector.pollWirelessDevices() }
 
             merge(
-                usbDevices.mapNotNull { it },
+                usbDevices,
                 wirelessPoll
             ).scan(emptyList<DeviceConnection>()) { acc, event ->
                 when (event) {

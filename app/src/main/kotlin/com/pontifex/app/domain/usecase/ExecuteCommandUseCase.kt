@@ -89,12 +89,11 @@ class ExecuteCommandUseCase @Inject constructor(
         )
 
         try {
-            val process = ProcessBuilder(args)
+            val pb = ProcessBuilder(args)
                 .directory(java.io.File("$containerPath/home"))
-                .environment()
-                .apply { putAll(env) }
                 .redirectErrorStream(true)
-                .start()
+            pb.environment().putAll(env)
+            val process = pb.start()
 
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             var line: String?

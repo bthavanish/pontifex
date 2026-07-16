@@ -26,6 +26,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -33,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.pontifex.app.presentation.components.DeviceStatusChip
 import com.pontifex.app.presentation.components.ExtraKeysRow
@@ -106,9 +108,17 @@ fun TerminalScreen(
                 .padding(padding)
         ) {
             val screen by activeSession?.screen?.collectAsState() ?: remember { androidx.compose.runtime.mutableStateOf(null) }
+            val cursorRow by activeSession?.cursorRow?.collectAsState() ?: remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            val cursorCol by activeSession?.cursorCol?.collectAsState() ?: remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            val columns by activeSession?.columns?.collectAsState() ?: remember { androidx.compose.runtime.mutableIntStateOf(80) }
+            val colors by activeSession?.colors?.collectAsState() ?: remember { mutableStateOf(null) }
 
             TerminalView(
                 screen = screen,
+                columns = columns,
+                cursorRow = cursorRow,
+                cursorCol = cursorCol,
+                colors = colors,
                 fontSize = fontSize,
                 modifier = Modifier
                     .weight(1f)

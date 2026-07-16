@@ -2,14 +2,12 @@ package com.pontifex.app.presentation.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,17 +16,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Text
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,8 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Fill
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -49,12 +42,11 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.termux.terminal.TerminalBuffer
 import com.termux.terminal.TerminalRow
-import com.termux.terminal.TerminalEmulator
+import com.termux.terminal.TextStyle as TermuxTextStyle
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -73,6 +65,10 @@ private val ANSI_BRIGHT_COLORS = intArrayOf(
 @Composable
 fun TerminalView(
     screen: TerminalBuffer?,
+    columns: Int = 80,
+    cursorRow: Int = 0,
+    cursorCol: Int = 0,
+    colors: IntArray? = null,
     fontSize: Int = 14,
     fontFamily: FontFamily = FontFamily.Monospace,
     modifier: Modifier = Modifier,
@@ -126,6 +122,10 @@ fun TerminalView(
                     TerminalRowComposable(
                         rowIndex = rowIndex,
                         screen = screen!!,
+                        columns = columns,
+                        cursorRow = cursorRow,
+                        cursorCol = cursorCol,
+                        colors = colors,
                         fontSize = currentFontSize.roundToInt(),
                         fontFamily = fontFamily,
                         textMeasurer = textMeasurer,
@@ -179,6 +179,10 @@ fun TerminalView(
 private fun TerminalRowComposable(
     rowIndex: Int,
     screen: TerminalBuffer,
+    columns: Int,
+    cursorRow: Int,
+    cursorCol: Int,
+    colors: IntArray?,
     fontSize: Int,
     fontFamily: FontFamily,
     textMeasurer: TextMeasurer,
@@ -198,50 +202,54 @@ private fun TerminalRowComposable(
             .height((fontSize * 1.4).dp)
             .background(surfaceColor)
     ) {
-        val row = screen.getRow(rowIndex) ?: return@Canvas
+        val internalRow = screen.externalToInternalRow(rowIndex)
+        val row = screen.allocateFullLineIfNecessary(internalRow) ?: return@Canvas
         val lineHeight = size.height
         val cellWidth = textMeasurer.measure("W", style).size.width.toFloat()
-        val cursorRow = screen.cursorRow
 
         var xOffset = 0f
         val chars = row.mText
-        val styles = row.mStyle
-        val columns = screen.columns
+        val rowStyles = row.mStyle
 
         for (col in 0 until columns) {
             if (col >= chars.size) break
 
             val char = chars[col]
-            val textStyle = if (col < styles.size) styles[col] else 0L
+            val textStyle = if (col < rowStyles.size) rowStyles[col] else 0L
 
             if (char == '\u0000' || char == ' ') {
                 xOffset += cellWidth
                 continue
             }
 
-            val fgIndex = ((TextStyle.ForegroundColor(textStyle).toLong() and 0xFFFFFF) - 256).toInt()
-            val bgIndex = ((TextStyle.BackgroundColor(textStyle).toLong() and 0xFFFFFF) - 256).toInt()
+            val fgIndex = TermuxTextStyle.decodeForeColor(textStyle)
+            val bgIndex = TermuxTextStyle.decodeBackColor(textStyle)
+
+            val effectiveColors = colors ?: ANSI_COLORS
 
             val fgColor = when {
-                fgIndex in 0..7 -> Color(ANSI_COLORS[fgIndex])
+                fgIndex in 0..7 -> Color(effectiveColors[fgIndex])
                 fgIndex in 8..15 -> Color(ANSI_BRIGHT_COLORS[fgIndex - 8])
-                fgIndex == TerminalEmulator.COLOR_INDEX_CURSOR -> cursorColor
-                fgIndex == TerminalEmulator.COLOR_INDEX_FOREGROUND -> onSurfaceColor
+                fgIndex == TermuxTextStyle.COLOR_INDEX_CURSOR -> cursorColor
+                fgIndex == TermuxTextStyle.COLOR_INDEX_FOREGROUND -> onSurfaceColor
+                (fgIndex and 0xFF000000.toInt()) != 0 -> Color(fgIndex)
                 else -> onSurfaceColor
             }
 
             val bgColor = when {
-                bgIndex in 0..7 -> Color(ANSI_COLORS[bgIndex])
+                bgIndex in 0..7 -> Color(effectiveColors[bgIndex])
                 bgIndex in 8..15 -> Color(ANSI_BRIGHT_COLORS[bgIndex - 8])
-                bgIndex == TerminalEmulator.COLOR_INDEX_BACKGROUND -> surfaceColor
-                bgIndex == TerminalEmulator.COLOR_INDEX_CURSOR -> cursorColor
+                bgIndex == TermuxTextStyle.COLOR_INDEX_BACKGROUND -> surfaceColor
+                bgIndex == TermuxTextStyle.COLOR_INDEX_CURSOR -> cursorColor
+                (bgIndex and 0xFF000000.toInt()) != 0 -> Color(bgIndex)
                 else -> Color.Transparent
             }
 
-            val isBold = TextStyle.isBold(textStyle)
-            val isItalic = TextStyle.isItalic(textStyle)
-            val isUnderline = TextStyle.isUnderline(textStyle)
-            val isStrikethrough = TextStyle.isStrikethrough(textStyle)
+            val effect = TermuxTextStyle.decodeEffect(textStyle)
+            val isBold = (effect and TermuxTextStyle.CHARACTER_ATTRIBUTE_BOLD) != 0
+            val isItalic = (effect and TermuxTextStyle.CHARACTER_ATTRIBUTE_ITALIC) != 0
+            val isUnderline = (effect and TermuxTextStyle.CHARACTER_ATTRIBUTE_UNDERLINE) != 0
+            val isStrikethrough = (effect and TermuxTextStyle.CHARACTER_ATTRIBUTE_STRIKETHROUGH) != 0
 
             if (bgColor != Color.Transparent) {
                 drawRect(
@@ -252,7 +260,7 @@ private fun TerminalRowComposable(
                 )
             }
 
-            if (rowIndex == cursorRow && col == screen.cursorCol) {
+            if (rowIndex == cursorRow && col == cursorCol) {
                 drawRect(
                     color = cursorColor.copy(alpha = 0.7f),
                     topLeft = Offset(xOffset, 0f),
