@@ -60,6 +60,8 @@ fun OnboardingScreen(
     val containerUri by viewModel.containerUri.collectAsState()
     val extractionProgress by viewModel.extractionProgress.collectAsState()
     val isExtractionComplete by viewModel.isExtractionComplete.collectAsState()
+    val extractionError by viewModel.extractionError.collectAsState()
+    val isExtracting by viewModel.isExtracting.collectAsState()
 
     val directoryPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -98,6 +100,8 @@ fun OnboardingScreen(
                     containerUri = containerUri,
                     progress = extractionProgress,
                     isComplete = isExtractionComplete,
+                    error = extractionError,
+                    isExtracting = isExtracting,
                     onExtract = { viewModel.startExtraction() },
                     onFinished = {
                         scope.launch {
@@ -251,6 +255,8 @@ private fun BinarySetupPage(
     containerUri: String?,
     progress: Float,
     isComplete: Boolean,
+    error: String?,
+    isExtracting: Boolean,
     onExtract: () -> Unit,
     onFinished: () -> Unit
 ) {
@@ -275,17 +281,33 @@ private fun BinarySetupPage(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        if (progress > 0f && !isComplete) {
+        if (isExtracting || (progress > 0f && !isComplete)) {
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 16.dp)
             )
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Extracting binaries... ${(progress * 100).toInt()}%",
+                text = when {
+                    progress < 0.1f -> "Initializing container..."
+                    progress < 0.6f -> "Extracting binaries... ${(progress * 100).toInt()}%"
+                    progress < 0.8f -> "Extracting binaries... ${(progress * 100).toInt()}%"
+                    progress < 1f -> "Verifying integrity..."
+                    else -> "Complete!"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (error != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
             )
         }
 
@@ -298,9 +320,9 @@ private fun BinarySetupPage(
         } else {
             Button(
                 onClick = onExtract,
-                enabled = containerUri != null && progress == 0f
+                enabled = containerUri != null && !isExtracting
             ) {
-                Text("Extract Binaries")
+                Text(if (isExtracting) "Extracting..." else "Extract Binaries")
             }
         }
     }

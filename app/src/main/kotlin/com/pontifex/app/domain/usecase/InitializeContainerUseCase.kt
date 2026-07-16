@@ -58,7 +58,7 @@ class InitializeContainerUseCase @Inject constructor(
 
         val containerPath = containerManager.getContainerPath(uri)
 
-        emit(InitProgress.ExtractingBinary("adb", 0f))
+        emit(InitProgress.ExtractingBinary("adb", 0.1f))
         val extractResult = binaryManager.extractBinaries(containerPath)
         if (extractResult.isFailure) {
             emit(InitProgress.Failed(
@@ -66,7 +66,7 @@ class InitializeContainerUseCase @Inject constructor(
             ))
             return@flow
         }
-        emit(InitProgress.ExtractingBinary("fastboot", 0.5f))
+        emit(InitProgress.ExtractingBinary("fastboot", 0.6f))
 
         emit(InitProgress.VerifyingChecksums)
         val verifyResult = checksumVerifier.verifyAll(containerPath)

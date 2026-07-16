@@ -89,7 +89,7 @@ class SplashViewModel @Inject constructor(
                     }
                     is InitProgress.Failed -> {
                         _state.value = SplashState.Error(
-                            message = progress.error.toString(),
+                            message = progress.error.message,
                             retryable = true
                         )
                     }
