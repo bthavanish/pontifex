@@ -209,13 +209,12 @@ private fun TerminalRowComposable(
 
         var xOffset = 0f
         val chars = row.mText
-        val rowStyles = row.mStyle
 
         for (col in 0 until columns) {
             if (col >= chars.size) break
 
             val char = chars[col]
-            val textStyle = if (col < rowStyles.size) rowStyles[col] else 0L
+            val textStyle = row.getStyle(col)
 
             if (char == '\u0000' || char == ' ') {
                 xOffset += cellWidth
