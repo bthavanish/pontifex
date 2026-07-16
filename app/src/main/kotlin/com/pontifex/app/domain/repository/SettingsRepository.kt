@@ -4,7 +4,7 @@ import com.pontifex.app.domain.model.ContainerState
 import kotlinx.coroutines.flow.Flow
 
 interface SettingsRepository {
-    fun getContainerUri(): Flow<String?>
+    fun getContainerUri(): Flow<String>
     suspend fun setContainerUri(uri: String)
     fun isOnboardingComplete(): Flow<Boolean>
     suspend fun setOnboardingComplete(complete: Boolean)

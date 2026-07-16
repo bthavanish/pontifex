@@ -21,37 +21,46 @@ class BinaryManager @Inject constructor(
         }
     }
 
-    suspend fun extractBinaries(containerUri: String): Result<Unit> {
+    suspend fun extractBinaries(containerPath: String): Result<Float> {
         return try {
             val abi = getAbi()
-            val containerPath = containerUri.removePrefix("file://")
+            val binDir = File(containerPath, "bin").also { it.mkdirs() }
 
-            val binDir = File(containerPath, "bin")
-            binDir.mkdirs()
+            listOf("adb", "fastboot").forEachIndexed { index, binary ->
+                val assetPath = "bin/$abi/$binary"
+                val target = File(binDir, binary)
 
-            extractAsset("bin/$abi/adb", File(binDir, "adb"))
-            extractAsset("bin/$abi/fastboot", File(binDir, "fastboot"))
+                val assetSize = try {
+                    context.assets.openFd(assetPath).use { it.length }
+                } catch (_: Exception) {
+                    0L
+                }
 
-            setExecutable(File(binDir, "adb"))
-            setExecutable(File(binDir, "fastboot"))
+                if (!target.exists() || target.length() != assetSize) {
+                    context.assets.open(assetPath).use { input ->
+                        target.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
 
-            Result.success(Unit)
+                target.setReadable(true, false)
+                target.setExecutable(true, false)
+            }
+
+            Result.success(1f)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    private fun extractAsset(assetPath: String, target: File) {
-        context.assets.open(assetPath).use { input ->
-            target.outputStream().use { output ->
-                input.copyTo(output)
-            }
+    fun getBinaryFiles(containerPath: String): List<Pair<String, String>> {
+        val abi = getAbi()
+        return listOf("adb", "fastboot").map { binary ->
+            val assetPath = "bin/$abi/$binary"
+            val target = File("$containerPath/bin", binary)
+            assetPath to target.absolutePath
         }
-    }
-
-    private fun setExecutable(file: File) {
-        file.setReadable(true)
-        file.setExecutable(true)
     }
 
     fun computeSha256(file: File): String {

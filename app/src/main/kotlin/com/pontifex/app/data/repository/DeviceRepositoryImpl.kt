@@ -33,6 +33,13 @@ class DeviceRepositoryImpl @Inject constructor(
             entities.map { it.toDomain() }
         }
 
+    override suspend fun syncDevices(devices: List<DeviceConnection>) {
+        deviceDao.deleteAll()
+        devices.forEach { device ->
+            deviceDao.upsert(device.toEntity())
+        }
+    }
+
     private fun ConnectedDevice.toDomain() = DeviceConnection(
         serial = serial,
         name = name,

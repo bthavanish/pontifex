@@ -8,9 +8,21 @@ import com.pontifex.app.domain.model.AppError
 import com.pontifex.app.domain.model.ContainerState
 import com.pontifex.app.domain.repository.SettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import java.io.File
 import javax.inject.Inject
+
+sealed class InitProgress {
+    data object CheckingContainer : InitProgress()
+    data class ExtractingBinary(val name: String, val progress: Float) : InitProgress()
+    data object VerifyingChecksums : InitProgress()
+    data object Complete : InitProgress()
+    data class Failed(val error: AppError) : InitProgress()
+}
 
 class InitializeContainerUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -19,7 +31,7 @@ class InitializeContainerUseCase @Inject constructor(
     private val checksumVerifier: ChecksumVerifier,
     private val settingsRepository: SettingsRepository
 ) {
-    suspend operator fun invoke(): Result<ContainerState> {
+    suspend fun checkExisting(): Result<ContainerState> {
         val existingUri = settingsRepository.getContainerUri().first()
 
         if (!existingUri.isNullOrBlank()) {
@@ -33,29 +45,42 @@ class InitializeContainerUseCase @Inject constructor(
         return Result.success(ContainerState.Uninitialized)
     }
 
-    suspend fun initializeAtUri(uri: String): Result<ContainerState> {
+    fun initializeAtUri(uri: String): Flow<InitProgress> = flow {
+        emit(InitProgress.CheckingContainer)
+
         val initResult = containerManager.initializeContainer(uri)
         if (initResult.isFailure) {
-            return Result.failure(
-                Exception("Container init failed: ${initResult.exceptionOrNull()?.message ?: "Unknown error"}")
-            )
+            emit(InitProgress.Failed(
+                AppError.ContainerInit(initResult.exceptionOrNull()?.message ?: "Unknown error")
+            ))
+            return@flow
         }
 
-        val extractResult = binaryManager.extractBinaries(uri)
+        val containerPath = containerManager.getContainerPath(uri)
+
+        emit(InitProgress.ExtractingBinary("adb", 0f))
+        val extractResult = binaryManager.extractBinaries(containerPath)
         if (extractResult.isFailure) {
-            return Result.failure(
-                Exception("Binary extraction failed: ${extractResult.exceptionOrNull()?.message}")
-            )
+            emit(InitProgress.Failed(
+                AppError.BinaryIntegrity("", extractResult.exceptionOrNull()?.message ?: "Extraction failed")
+            ))
+            return@flow
         }
+        emit(InitProgress.ExtractingBinary("fastboot", 0.5f))
 
-        val verifyResult = checksumVerifier.verifyAll(uri)
+        emit(InitProgress.VerifyingChecksums)
+        val verifyResult = checksumVerifier.verifyAll(containerPath)
         if (verifyResult.isFailure) {
-            return Result.failure(
-                Exception("Binary integrity check failed: ${verifyResult.exceptionOrNull()?.message ?: "Checksum mismatch"}")
-            )
+            emit(InitProgress.Failed(
+                AppError.BinaryIntegrity(
+                    expected = "",
+                    actual = verifyResult.exceptionOrNull()?.message ?: "Checksum mismatch"
+                )
+            ))
+            return@flow
         }
 
         settingsRepository.setContainerUri(uri)
-        return Result.success(ContainerState.Ready(uri))
-    }
+        emit(InitProgress.Complete)
+    }.flowOn(Dispatchers.IO)
 }

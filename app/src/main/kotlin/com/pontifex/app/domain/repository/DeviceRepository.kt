@@ -8,4 +8,5 @@ interface DeviceRepository {
     suspend fun addDevice(device: DeviceConnection)
     suspend fun removeDevice(serial: String)
     fun getDeviceHistory(): Flow<List<DeviceConnection>>
+    suspend fun syncDevices(devices: List<DeviceConnection>)
 }
