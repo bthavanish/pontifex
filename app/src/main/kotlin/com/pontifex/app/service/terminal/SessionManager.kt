@@ -1,6 +1,7 @@
 package com.pontifex.app.service.terminal
 
 import android.content.Context
+import com.pontifex.app.data.binary.BinaryManager
 import com.pontifex.app.data.db.dao.CommandHistoryDao
 import com.pontifex.app.data.db.entity.CommandHistoryEntry
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -13,20 +14,23 @@ import javax.inject.Singleton
 @Singleton
 class SessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val commandHistoryDao: CommandHistoryDao
+    private val commandHistoryDao: CommandHistoryDao,
+    private val binaryManager: BinaryManager
 ) {
-    private val sessions = mutableMapOf<Int, TerminalSession>()
+    private val sessions = mutableMapOf<Int, PontifexTerminalSession>()
     private val _activeSessionId = MutableStateFlow(0)
     val activeSessionId: StateFlow<Int> = _activeSessionId.asStateFlow()
 
     private var nextSessionId = 1
 
-    suspend fun createSession(
+    fun createSession(
         containerPath: String,
         sessionId: Int,
         name: String? = null
-    ): TerminalSession {
-        val session = TerminalSession(
+    ): PontifexTerminalSession {
+        val session = PontifexTerminalSession(
+            context = context,
+            binaryManager = binaryManager,
             id = sessionId,
             name = name ?: "Session $sessionId",
             containerPath = containerPath
@@ -36,9 +40,9 @@ class SessionManager @Inject constructor(
         return session
     }
 
-    fun getSession(sessionId: Int): TerminalSession? = sessions[sessionId]
+    fun getSession(sessionId: Int): PontifexTerminalSession? = sessions[sessionId]
 
-    fun getActiveSession(): TerminalSession? = sessions[_activeSessionId.value]
+    fun getActiveSession(): PontifexTerminalSession? = sessions[_activeSessionId.value]
 
     fun setActiveSession(sessionId: Int) {
         if (sessions.containsKey(sessionId)) {

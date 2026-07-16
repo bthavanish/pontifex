@@ -89,7 +89,7 @@ class TerminalForegroundService : Service() {
     }
 
     companion object {
-        const val CHANNEL_ID = "terminal_sessions"
+        const val CHANNEL_ID = "pontifex_terminal"
         const val NOTIFICATION_ID = 1
         const val ACTION_START = "com.pontifex.app.START"
         const val ACTION_UPDATE = "com.pontifex.app.UPDATE"
