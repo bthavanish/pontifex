@@ -11,9 +11,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
 
     env:
-      JAVA_HOME: ''
       GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.workers.max=4'
 
     steps:
@@ -34,24 +35,25 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
       - name: Install NDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125" || true
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Debug APK
+      - name: Rename APK for nightly
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          APK_SRC=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+          APK_NAME="pontifex-nightly-${TIMESTAMP}-${SHORT_SHA}.apk"
+          cp "$APK_SRC" "$APK_NAME"
+          echo "APK_PATH=$APK_NAME" >> $GITHUB_ENV
+          echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
+
+      - name: Upload Debug APK artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -59,7 +61,37 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 7
 
-      - name: Upload Build Logs
+      - name: Delete old nightly release and tag
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          gh release delete nightly --yes 2>/dev/null || true
+          git push origin :refs/tags/nightly 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create nightly release
+        if: success() && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: "Nightly Build"
+          body: |
+            🌙 **Nightly — auto-generated, not stable**
+
+            | | |
+            |---|---|
+            | **Branch** | `${{ github.ref_name }}` |
+            | **Commit** | [`${{ github.sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) |
+            | **Triggered by** | ${{ github.event_name }} |
+
+            > This release is overwritten on every push to `main` or `develop`. Grab the APK below.
+          prerelease: true
+          make_latest: false
+          files: ${{ env.APK_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -68,3 +100,5 @@ jobs:
             app/build/reports/
             build/reports/
           retention-days: 3
+
+# ~ https://github.com/thavanish edited this shitty code
