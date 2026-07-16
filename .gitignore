@@ -69,3 +69,7 @@ kotlin-ide/
 .claude/settings.local.json
 **/xcuserdata
 .test-federation.*
+.agents/
+.claude/
+agent/
+skills-lock.json
