@@ -60,7 +60,7 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.setBoolean(SettingsKeys.DARK_MODE, dark)
 
     override fun isSystemDarkMode(): Flow<Boolean> =
-        dataStore.getBoolean(SettingsKeys.DARK_MODE, true)
+        dataStore.getBoolean(SettingsKeys.SYSTEM_DARK_MODE, true)
 
     override fun getScrollbackLines(): Flow<Int> =
         dataStore.getInt(SettingsKeys.SCROLLBACK_LINES, 5000)

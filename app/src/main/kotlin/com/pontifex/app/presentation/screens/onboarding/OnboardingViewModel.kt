@@ -59,9 +59,8 @@ class OnboardingViewModel @Inject constructor(
         }
     }
 
-    fun completeOnboarding() {
-        viewModelScope.launch {
-            settingsRepository.setOnboardingComplete(true)
-        }
+    suspend fun completeOnboarding() {
+        settingsRepository.setContainerUri(_containerUri.value ?: "")
+        settingsRepository.setOnboardingComplete(true)
     }
 }

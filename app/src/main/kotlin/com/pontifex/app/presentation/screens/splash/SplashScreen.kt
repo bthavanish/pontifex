@@ -135,10 +135,15 @@ fun SplashScreen(
             }
             is SplashState.Error -> {
                 AlertDialog(
-                    onDismissRequest = { },
+                    onDismissRequest = { viewModel.goToOnboarding() },
                     title = { Text("Setup Error") },
                     text = { Text(currentState.message) },
                     confirmButton = {
+                        TextButton(onClick = { viewModel.goToOnboarding() }) {
+                            Text("Go to Setup")
+                        }
+                    },
+                    dismissButton = {
                         if (currentState.retryable) {
                             TextButton(onClick = { viewModel.retry() }) {
                                 Text("Retry")

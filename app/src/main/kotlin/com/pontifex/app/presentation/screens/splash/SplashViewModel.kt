@@ -46,7 +46,12 @@ class SplashViewModel @Inject constructor(
 
             if (!isOnboardingComplete) {
                 _shouldNavigateToOnboarding.value = true
-                _isReady.value = true
+                return@launch
+            }
+
+            val containerUri = settingsRepository.getContainerUri().first()
+            if (containerUri.isNullOrBlank()) {
+                _shouldNavigateToOnboarding.value = true
                 return@launch
             }
 
@@ -60,7 +65,6 @@ class SplashViewModel @Inject constructor(
                 message = "Container not initialized. Please complete onboarding.",
                 retryable = true
             )
-            _isReady.value = true
         }
     }
 
@@ -96,6 +100,11 @@ class SplashViewModel @Inject constructor(
 
     fun retry() {
         _state.value = SplashState.Checking
+        _shouldNavigateToOnboarding.value = false
         checkAndInitialize()
+    }
+
+    fun goToOnboarding() {
+        _shouldNavigateToOnboarding.value = true
     }
 }

@@ -197,6 +197,7 @@ class SettingsViewModel @Inject constructor(
                 val containerPath = containerManager.getContainerPath(containerUri)
                 java.io.File(containerPath).deleteRecursively()
                 settingsRepository.setContainerUri("")
+                settingsRepository.setOnboardingComplete(false)
             }
         }
     }

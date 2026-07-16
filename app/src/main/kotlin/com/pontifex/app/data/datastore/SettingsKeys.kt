@@ -13,6 +13,7 @@ object SettingsKeys {
     val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
     val AMOLED_BLACK = booleanPreferencesKey("amoled_black")
     val DARK_MODE = booleanPreferencesKey("dark_mode")
+    val SYSTEM_DARK_MODE = booleanPreferencesKey("system_dark_mode")
     val SCROLLBACK_LINES = intPreferencesKey("scrollback_lines")
     val SHOW_EXTRA_KEYS = booleanPreferencesKey("show_extra_keys")
     val CURSOR_STYLE = stringPreferencesKey("cursor_style")

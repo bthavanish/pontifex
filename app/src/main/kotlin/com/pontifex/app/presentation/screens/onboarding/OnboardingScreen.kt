@@ -100,8 +100,10 @@ fun OnboardingScreen(
                     isComplete = isExtractionComplete,
                     onExtract = { viewModel.startExtraction() },
                     onFinished = {
-                        viewModel.completeOnboarding()
-                        onFinished()
+                        scope.launch {
+                            viewModel.completeOnboarding()
+                            onFinished()
+                        }
                     }
                 )
             }
